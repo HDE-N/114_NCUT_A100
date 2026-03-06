@@ -1,0 +1,16 @@
+# 忽略數據資料集
+*.csv
+*.png
+*.jpg
+*.zip
+
+# 忽略 PyTorch 模型權重檔
+*.pth
+*.txt
+*.flag
+
+# 忽略 JupyterLab 暫存與快取
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
