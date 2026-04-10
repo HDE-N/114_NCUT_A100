@@ -126,11 +126,6 @@ def main():
     # 重導向輸出
     sys.stdout = DualLogger(log_file_path)
 
-    # 檢查是否測過
-    if os.path.exists(result_csv_path):
-        print(f"[Skip] Test result exists: {run_name}")
-        return
-
     # 權重路徑
     model_dir = f"models/{run_name}"
     ckpt_path = os.path.join(model_dir, "best.pth")
@@ -211,13 +206,24 @@ def main():
     
     # 防止若測試集中某個 label 完全缺失導致 average_precision_score 報錯
     try:
-        mAP = average_precision_score(y_true_binarized, all_probs, average='macro')
+        # 修改點：透過 average=None 取得獨立類別的 AP，以便計算特定組合的 mAP
+        ap_per_class = average_precision_score(y_true_binarized, all_probs, average=None)
+        mAP = np.mean(ap_per_class) # 等同於原始的 macro mAP
+        
+        # 新增指標：僅考慮 notTired (0) 與 Tired (1) 的 mAP (取兩者 AP 進行平均)
+        if len(ap_per_class) >= 2:
+            mAP_notTired_Tired = np.nanmean([ap_per_class[0], ap_per_class[1]])
+        else:
+            mAP_notTired_Tired = 0.0
+            
     except ValueError:
         mAP = 0.0
+        mAP_notTired_Tired = 0.0
 
     print(f"\n================ Results (Per-Segment) ================")
     print(f"Total Segments Evaluated: {len(all_y_true)}")
-    print(f"Overall Accuracy: {acc:.4f} | Macro F1: {macro_f1:.4f} | mAP: {mAP:.4f}")
+    # 修改點：印出兩種 mAP
+    print(f"Overall Accuracy: {acc:.4f} | Macro F1: {macro_f1:.4f} | Overall mAP: {mAP:.4f} | mAP (notTired & Tired): {mAP_notTired_Tired:.4f}")
     print(f"--- F1 Scores per class ---")
     print(f"[0] notTired F1 : {f1_notTired:.4f}")
     print(f"[1] Tired F1    : {f1_Tired:.4f}")
@@ -252,7 +258,8 @@ def main():
         "run_name": run_name,
         "acc": acc,
         "macro_f1": macro_f1,
-        "mAP": mAP,                # 新增 mAP 欄位
+        "mAP": mAP,
+        "mAP_notTired_Tired": mAP_notTired_Tired,  # 修改點：新增僅包含這兩類的 mAP 欄位
         "f1_notTired": f1_notTired,
         "f1_Tired": f1_Tired,
         "f1_Other": f1_Other,
