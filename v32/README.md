@@ -66,3 +66,11 @@ NOISE_STD = 1.5、SCALE_FACTOR = 1.2
 bak8 重新訓練
 
 所有參數均與bak8一致
+
+### bak11
+
+使用 data_v55，bak3
+
+NOISE_STD = 1.8、SCALE_FACTOR = 1.2
+
+原始數據小增強，NOISE_STD = 0.3、SCALE_FACTOR = 1.1

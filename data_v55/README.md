@@ -25,4 +25,8 @@ NOISE_STD = 1.5、SCALE_FACTOR = 1.2
 原始數據小增強，NOISE_STD = 0.3、SCALE_FACTOR = 1.1
 
 
-### 現在是 bak1
+### bak3 增強參數
+
+NOISE_STD = 1.8、SCALE_FACTOR = 1.2
+
+原始數據小增強，NOISE_STD = 0.3、SCALE_FACTOR = 1.1
