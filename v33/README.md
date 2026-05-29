@@ -12,6 +12,12 @@ NOISE_STD = 2.0、SCALE_FACTOR = 1.2
 
 ### bak2
 
-增強參數與bak1一致
+使用diffusion model生成數據進行測試
 
-惟訓練參數較多
+### bak3
+
+使用 data_v57 bak2
+
+NOISE_STD = 2.0、SCALE_FACTOR = 1.2
+
+原始數據小增強，NOISE_STD = 0.3、SCALE_FACTOR = 1.1

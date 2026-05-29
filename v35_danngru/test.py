@@ -26,6 +26,10 @@ parser.add_argument("--hidden", type=int, default=128)
 parser.add_argument("--layer", type=int, default=2)
 parser.add_argument("--patience", type=int, default=30)
 parser.add_argument("--data_version", type=str, default='46')
+
+# 💡 【必須新增這兩行】：讓 test.py 能夠相容自動化腳本傳過來的 DANN 參數
+parser.add_argument("--lambda_dann", type=float, default=1.0, help="對抗損失的權重強度")
+parser.add_argument("--target_version", type=str, default='46/special_data', help="DANN 目標域資料夾路徑")
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,7 +76,7 @@ class TestDataset(Dataset):
         
         for p in files:
             try:
-                # 只讀取標準特徵欄位，不再區分 _aug 欄位
+                # 只讀取標準特徵欄位
                 df = pd.read_csv(p, usecols=lambda x: x in column_names, dtype=np.float32)
                 
                 # 確保檔案內包含所需的全部欄位
@@ -103,6 +107,7 @@ class GRUModel(nn.Module):
     def __init__(self, input_dim=1, hidden=128, layers=2, num_classes=3):
         super().__init__()
         self.gru = nn.GRU(input_dim, hidden, layers, batch_first=True, dropout=0.2)
+        # 測試端維持使用單一全連接層 fc
         self.fc = nn.Linear(hidden, num_classes)
 
     def forward(self, x):
@@ -110,19 +115,22 @@ class GRUModel(nn.Module):
         _, h = self.gru(x)
         return self.fc(h[-1]).squeeze()
 
+# -----------------------------------------------------------------------------
+# Main 推論測試
+# -----------------------------------------------------------------------------
 def main():
     target_columns = [c.strip() for c in args.column.split(',')]
     input_dim = len(target_columns)
     
-    # [關鍵] 確保 run_name 與訓練時的三類別命名一致
-    run_name = f"fold{args.fold}_layer_{args.layer}_hidden_{args.hidden}_lr_{args.lr}_dv_{args.data_version}_col_{args.column}_3class"
+    # [修正點 1] 將結尾改為 _DANN，以正確對接到對抗性自適應訓練產生的資料夾名稱
+    run_name = f"fold{args.fold}_layer_{args.layer}_hidden_{args.hidden}_lr_{args.lr}_dv_{args.data_version}_col_{args.column}_DANN"
     
     output_dir = "./test_log"
     os.makedirs(output_dir, exist_ok=True)
     
     result_csv_path = os.path.join(output_dir, f"{run_name}_result.csv")
     log_file_path = os.path.join(output_dir, f"{run_name}_log.txt")
-    cm_img_path = os.path.join(output_dir, f"{run_name}_cm.png")  # 混淆矩陣圖片路徑
+    cm_img_path = os.path.join(output_dir, f"{run_name}_cm.png") 
     
     # 重導向輸出
     sys.stdout = DualLogger(log_file_path)
@@ -136,27 +144,39 @@ def main():
             print(f"[Error] No weights found for {run_name}")
             return
 
-    print(f"Testing 3-Class Model (Evaluation Unit: Segment): {run_name}")
+    print(f"Testing DANN Optimization Model (Evaluation Unit: Segment): {run_name}")
     print(f"Loading weights from: {ckpt_path}")
 
-    # 測試集
-    test_data_path = f"../data_v{args.data_version}/test_data_2" ########################################################################################################################################################################################################################
-    # test_data_path = f"../../1150424_AAE/data_v1/test_data_3"
+    # 測試集資料夾路徑
+    test_data_path = f"../data_v{args.data_version}/test_data_2" ########################################################################################################################
     test_ds = TestDataset(test_data_path, target_columns, seq_len=960)
     if len(test_ds) == 0:
-        print("[Error] No test data found.")
+        print(f"[Error] No test data found in path: {test_data_path}")
         return
     loader = DataLoader(test_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=4)
 
     # 模型載入 (num_classes=3)
     model = GRUModel(input_dim=input_dim, hidden=args.hidden, layers=args.layer, num_classes=3).to(device)
+    
+    # [修正點 2] 權重映射與相容性處理邏輯
     try:
         state = torch.load(ckpt_path, map_location=device, weights_only=True)
         new_state = {}
         for k, v in state.items():
-            if k.startswith("_orig_mod."): new_state[k[10:]] = v
-            else: new_state[k] = v
-        model.load_state_dict(new_state)
+            if k.startswith("_orig_mod."): 
+                k_clean = k[10:]
+            else: 
+                k_clean = k
+                
+            # 將 DANN 權重檔中的 'class_classifier' 對照映射至通用結構的 'fc'
+            if k_clean.startswith("class_classifier."):
+                new_state[k_clean.replace("class_classifier.", "fc.")] = v
+            else:
+                new_state[k_clean] = v
+                
+        # strict=False：自動忽略 DANN 遺留下來的 domain_classifier 分支權重，確保安全載入
+        model.load_state_dict(new_state, strict=False)
+        print("-> DANN 權重載入成功！(已自動剝離多餘的領域辨識器分支)")
     except Exception as e:
         print(f"[Error] Load failed: {e}")
         return
@@ -207,7 +227,7 @@ def main():
         ap_per_class = average_precision_score(y_true_binarized, all_probs, average=None)
         mAP = np.mean(ap_per_class)
         
-        # 新增指標：僅考慮 notTired (0) 與 Tired (1) 的 mAP 
+        # 僅考慮 notTired (0) 與 Tired (1) 的 mAP 
         if len(ap_per_class) >= 2:
             mAP_notTired_Tired = np.nanmean([ap_per_class[0], ap_per_class[1]])
         else:
