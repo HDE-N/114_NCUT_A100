@@ -153,7 +153,7 @@ def main():
     if len(test_ds) == 0:
         print(f"[Error] No test data found in path: {test_data_path}")
         return
-    loader = DataLoader(test_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=4)
+    loader = DataLoader(test_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=1)
 
     # 模型載入 (num_classes=3)
     model = GRUModel(input_dim=input_dim, hidden=args.hidden, layers=args.layer, num_classes=3).to(device)

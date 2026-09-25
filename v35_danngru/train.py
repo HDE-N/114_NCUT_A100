@@ -27,7 +27,7 @@ parser.add_argument("--fold", type=int, default=1)
 parser.add_argument("--column", type=str, default='acceleration_Y')
 parser.add_argument("--hidden", type=int, default=128)
 parser.add_argument("--layer", type=int, default=2)
-parser.add_argument("--patience", type=int, default=30)
+parser.add_argument("--patience", type=int, default=40)
 parser.add_argument("--data_version", type=str, default='46')
 # ==== DANN 新增參數 ====
 parser.add_argument("--lambda_dann", type=float, default=1.0, help="對抗損失的權重強度")
@@ -218,8 +218,8 @@ def main():
     source_ds = ConcatDataset(source_datasets)
     val_ds = ConcatDataset(val_datasets)
     
-    source_loader = DataLoader(source_ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, drop_last=False)
-    target_loader = DataLoader(train_target, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True, drop_last=False)
+    source_loader = DataLoader(source_ds, batch_size=args.batch_size, shuffle=True, num_workers=1, pin_memory=True, drop_last=False)
+    target_loader = DataLoader(train_target, batch_size=args.batch_size, shuffle=True, num_workers=1, pin_memory=True, drop_last=False)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=1, pin_memory=True)
 
     # 初始化模型與優化器
